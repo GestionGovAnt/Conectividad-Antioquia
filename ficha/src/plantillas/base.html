@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ficha municipal de avance TIC · Antioquia</title>
+<!--
+  Archivo autónomo. No requiere internet, servidor ni instalación:
+  se abre con doble clic en cualquier navegador.
+  Generado por build.py a partir de datos/sabana_unica_visor.xlsx.
+  Construido el {{FECHA}}.
+-->
+<style>
+{{ESTILOS}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="fila fila-top">
+    <div class="vistas" role="group" aria-label="Vista del informe">
+      <button id="vficha" class="on">Ficha</button><button id="vzona">Zona</button><button id="vcomp">Componentes</button>
+    </div>
+    <span class="spacer"></span>
+    <button id="exportar">Exportar cifras</button>
+    <button id="imprimir" class="pri">Imprimir / PDF</button>
+  </div>
+
+  <div class="fila fila-filtros">
+    <div class="campo">
+      <label class="lbl" for="fsub">Subregión</label>
+      <select id="fsub"></select>
+    </div>
+    <div class="campo">
+      <label class="lbl" id="leat" for="feat">EAT</label>
+      <select id="feat"></select>
+    </div>
+    <div class="campo">
+      <label class="lbl" id="lmun" for="fmun">Municipio</label>
+      <div class="conflechas">
+        <select id="fmun"></select>
+        <button id="prev" title="Municipio anterior">&#9664;</button>
+        <button id="next" title="Municipio siguiente">&#9654;</button>
+      </div>
+    </div>
+    <div class="campo campo-comp">
+      <label class="lbl" id="lcomp" for="fcomp">Componente</label>
+      <select id="fcomp"></select>
+    </div>
+  </div>
+
+  <div class="ayuda" id="ayuda"></div>
+</div>
+
+<div class="page" id="informe"></div>
+
+<script>
+var META = {{META}};
+var DATOS = {{DATOS}};
+var GEO = {{GEO}};
+var IMG = {{IMG}};
+</script>
+<script>
+{{APP_JS}}
+</script>
+</body>
+</html>

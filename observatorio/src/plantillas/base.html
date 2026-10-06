@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Observatorio de Conectividad · Antioquia</title>
+<!--
+  Tablero autónomo. No requiere internet, servidor ni instalación.
+  Generado por build.py a partir de datos/sabana_unica_visor.xlsx
+  y datos/inversion.csv. Construido el {{FECHA}}.
+-->
+<style>
+{{ESTILOS}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="marca">
+    <img id="logo" alt="Gobernación de Antioquia">
+    <div>
+      <div class="tit">Observatorio de Conectividad</div>
+      <div class="sub" id="dependencia"></div>
+    </div>
+  </div>
+
+  <div class="pills" id="pills"></div>
+
+  <span class="spacer"></span>
+
+  <div class="campo">
+    <span class="et">Indicador del mapa</span>
+    <select id="metrica">
+      <option value="unidades">Unidades del eje</option>
+      <option value="cobertura">Cobertura</option>
+      <option value="inversion">Inversión</option>
+    </select>
+  </div>
+  <div class="campo">
+    <span class="et">Municipio</span>
+    <select id="fmun"></select>
+  </div>
+  <button class="accion" id="exportar">Exportar CSV</button>
+</div>
+
+<div class="cuerpo">
+  <div class="panel" id="panel"></div>
+  <div class="lienzo" id="lienzo">
+    <div id="mapa"></div>
+    <div class="flot capas" id="capas"></div>
+    <div class="flot leyenda" id="leyenda"></div>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+</div>
+
+<script>
+var META = {{META}};
+var DATOS = {{DATOS}};
+var GEO = {{GEO}};
+var IMG = {{IMG}};
+</script>
+<script>
+{{APP_JS}}
+</script>
+</body>
+</html>

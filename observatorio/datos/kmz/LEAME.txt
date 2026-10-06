@@ -1,0 +1,30 @@
+Trazado de fibra óptica — archivos KMZ
+======================================
+
+Copie aquí los 125 KMZ. El build los lee solo, mide cada trazado y los
+convierte en una capa de líneas del mapa.
+
+NOMBRE DEL ARCHIVO
+------------------
+Lo ideal es que el nombre traiga el municipio. Cualquiera de estas formas
+funciona:
+
+    Yolombo.kmz
+    Fibra_Optica_Yolombo.kmz
+    Trazado Santa Fe de Antioquia.kmz
+    Fibra - El Peñol.kmz
+
+Si el nombre no cruza, el sistema ubica el municipio por la posición del
+trazado (el polígono que contiene su punto medio). Si tampoco cruza, el
+archivo se reporta como "sin municipio asignado" y usted lo corrige.
+
+QUÉ SE MIDE
+-----------
+La longitud real de cada trazado sobre el elipsoide, sumando la distancia
+entre vértices consecutivos. Eso le permite contrastar contra los metros
+digitados en la sábana: la diferencia sale en el log de la construcción.
+
+FORMATO
+-------
+KMZ (ZIP con doc.kml) o KML suelto. Se leen las geometrías LineString y
+LinearRing en cualquier nivel de anidamiento.

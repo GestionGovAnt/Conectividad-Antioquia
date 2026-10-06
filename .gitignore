@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*/salida/
+*/sitio/
+.venv/
+.env

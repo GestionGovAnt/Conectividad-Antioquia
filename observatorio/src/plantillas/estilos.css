@@ -1,0 +1,111 @@
+:root{
+  --g1:#0E2A20; --g2:#17402F; --g3:#2E7D57;
+  --panel:#FFFFFF; --fondo:#EAF0EC; --linea:#DDE6E0;
+  --tinta:#16241E; --suave:#6C7872; --tenue:#9AA5A0;
+  --educacion:#0F6E56; --salud:#B0324B; --seguridad:#185FA5; --tic:#8A5209;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:Carlito,Calibri,"Segoe UI",system-ui,-apple-system,sans-serif;
+  color:var(--tinta);background:var(--fondo);overflow:hidden;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+/* ---------------- encabezado ---------------- */
+.top{height:60px;background:var(--g1);color:#fff;display:flex;align-items:center;
+  gap:16px;padding:0 18px;position:relative;z-index:20}
+.top .marca{display:flex;align-items:center;gap:11px}
+.top img{height:34px;width:auto;display:block;background:#fff;border-radius:5px;padding:3px 5px}
+.top .tit{font-size:15px;font-weight:700;line-height:1.15}
+.top .sub{font-size:10.5px;color:#9FC4B1;white-space:nowrap}
+.pills{display:flex;gap:0;margin-left:8px;border:1px solid rgba(255,255,255,.22);
+  border-radius:9px;overflow:hidden}
+.pills button{border:0;border-right:1px solid rgba(255,255,255,.22);background:transparent;
+  color:#CFE3D8;font:inherit;font-size:13.5px;padding:9px 17px;cursor:pointer;
+  display:flex;align-items:center;gap:7px}
+.pills button:last-child{border-right:0}
+.pills button:hover{background:rgba(255,255,255,.08)}
+.pills button.on{background:#fff;color:var(--g1);font-weight:700}
+.pills .pt{width:9px;height:9px;border-radius:50%;display:inline-block}
+.spacer{flex:1}
+.top select{font:inherit;font-size:13px;padding:7px 9px;border-radius:7px;
+  border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);color:#fff}
+.top select option{color:var(--tinta)}
+.top button.accion{font:inherit;font-size:13px;padding:7px 13px;border-radius:7px;
+  border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);
+  color:#fff;cursor:pointer}
+.top button.accion:hover{background:rgba(255,255,255,.2)}
+.top .campo{display:flex;flex-direction:column;gap:2px}
+.top .campo .et{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#8FB6A2}
+
+/* ---------------- estructura ---------------- */
+.cuerpo{display:flex;height:calc(100% - 60px)}
+.panel{width:372px;flex:none;background:var(--panel);border-right:1px solid var(--linea);
+  overflow-y:auto;padding:16px;min-height:0}
+.lienzo{flex:1;position:relative;overflow:hidden;background:var(--fondo);min-height:0;min-width:0}
+#mapa{position:absolute;top:0;right:0;bottom:0;left:0}
+#mapa svg{width:100%;height:100%;display:block}
+
+/* ---------------- panel ---------------- */
+.ambito{font-size:22px;font-weight:700;color:var(--g2);line-height:1.1}
+.ambito-sub{font-size:11.5px;color:var(--suave);margin-top:3px}
+.volver{margin-top:8px;font-size:12px;color:var(--g3);background:none;border:0;
+  cursor:pointer;padding:0;text-decoration:underline}
+.bloque{margin-top:16px}
+.bloque h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--tenue);font-weight:700;margin-bottom:8px}
+.kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:7px 0;border-bottom:1px dotted var(--linea)}
+.kpi .k{font-size:12px;color:var(--suave)}
+.kpi .v{font-size:15px;font-weight:700;color:var(--g2);white-space:nowrap}
+.grande{background:linear-gradient(135deg,var(--g2),var(--g3));color:#fff;
+  border-radius:10px;padding:14px 16px;margin-top:12px}
+.grande .n{font-size:30px;font-weight:700;line-height:1}
+.grande .e{font-size:11px;color:#BFDCCC;margin-top:3px}
+.grande .d{font-size:11px;color:#DDEEE4;margin-top:7px;line-height:1.45}
+.fila-rep{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:3px 0}
+.fila-rep .n{flex:1;color:#37453E}
+.fila-rep .b{width:64px;height:8px;background:#E9EFEB;border-radius:5px;overflow:hidden}
+.fila-rep .b span{display:block;height:8px;border-radius:5px}
+.fila-rep .v{width:62px;text-align:right;font-weight:700}
+.aviso{background:#FFF6E0;border:1px solid #F0DCA8;border-radius:8px;padding:10px 12px;
+  font-size:11.5px;color:#7A5B00;line-height:1.45;margin-top:12px}
+.aviso b{color:#5C4400}
+.pie{margin-top:18px;font-size:10px;color:var(--tenue);line-height:1.5}
+.pie a{color:var(--g3)}
+
+/* ---------------- mapa ---------------- */
+.mp{stroke:#fff;stroke-width:.55;cursor:pointer;transition:fill .15s}
+.mp:hover{stroke:var(--g1);stroke-width:1.4}
+.mp.sel{stroke:var(--g1);stroke-width:2}
+.mout{fill:none;stroke:#8FA79A;stroke-width:1}
+.pt{stroke:#fff;stroke-width:.35;pointer-events:none}
+
+.flot{position:absolute;background:rgba(255,255,255,.95);border:1px solid var(--linea);
+  border-radius:10px;padding:11px 13px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
+.capas{left:14px;bottom:14px;width:264px}
+.capas h4,.leyenda h4{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--tenue);font-weight:700;margin-bottom:7px}
+.capa{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:3px 0;cursor:pointer}
+.capa input{cursor:pointer}
+.capa .pto{width:9px;height:9px;border-radius:50%;flex:none}
+.capa .cn{flex:1;padding-right:6px;line-height:1.25}
+.capa .cc{color:var(--tenue);font-size:10.5px;flex:none;min-width:34px;text-align:right}
+.leyenda{right:14px;bottom:14px}
+.escala{display:flex;gap:0;margin-bottom:4px}
+.escala i{width:30px;height:11px;display:block}
+.escala i:first-child{border-radius:3px 0 0 3px}
+.escala i:last-child{border-radius:0 3px 3px 0}
+.escala-txt{display:flex;justify-content:space-between;font-size:10px;color:var(--suave)}
+.tooltip{position:absolute;pointer-events:none;background:var(--g1);color:#fff;
+  border-radius:7px;padding:8px 11px;font-size:11.5px;line-height:1.5;opacity:0;
+  transition:opacity .12s;z-index:30;max-width:230px}
+.tooltip b{font-size:13px}
+.tooltip .tv{color:#A8D3BC}
+
+@media (max-width:900px){
+  body{overflow:auto}
+  .cuerpo{display:block;height:auto}
+  .panel{width:auto;border-right:0;border-bottom:1px solid var(--linea)}
+  .lienzo{height:70vh}
+  .top{height:auto;flex-wrap:wrap;padding:10px 12px;gap:10px}
+}

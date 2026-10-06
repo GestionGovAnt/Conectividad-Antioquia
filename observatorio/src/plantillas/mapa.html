@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Observatorio de Conectividad · Antioquia</title>
+<!--
+  Versión con mapa base. Requiere internet: la librería MapLibre GL y las
+  teselas del mapa base se descargan de un CDN. Los datos van embebidos.
+  Generado por build.py el {{FECHA}}.
+-->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+{{ESTILOS}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="fila fila1">
+    <img id="logo" alt="Gobernación de Antioquia">
+    <div>
+      <div class="tit">Observatorio de Conectividad</div>
+      <div class="sub">Dirección de Gestión Territorial TIC · Gobernación de Antioquia</div>
+    </div>
+    <div class="pills" id="pills"></div>
+    <span class="spacer"></span>
+    <button class="accion" id="btn3d">Relieve 3D</button>
+    <button class="accion" id="exportar">Exportar CSV</button>
+  </div>
+
+  <div class="fila fila2">
+    <div class="campo">
+      <span class="et">Indicador del mapa</span>
+      <select id="metrica"></select>
+    </div>
+    <div class="campo">
+      <span class="et">Subregión</span>
+      <select id="fsub"></select>
+    </div>
+    <div class="campo">
+      <span class="et">EAT</span>
+      <select id="feat"></select>
+    </div>
+    <div class="campo">
+      <span class="et">Municipio</span>
+      <select id="fmun"></select>
+    </div>
+    <span class="spacer"></span>
+    <span class="ayuda-metrica" id="ayudaMetrica"></span>
+    <span class="ayuda" id="ayuda">Clic en un municipio para acercar y ver su detalle</span>
+  </div>
+</div>
+
+<div class="cuerpo">
+  <div id="mapa">
+    <div class="flot capas" id="capas"></div>
+    <div class="flot leyenda" id="leyenda"></div>
+    <div class="franja" id="franja"></div>
+    <div class="sinred" id="sinred">
+      <b>No se pudo cargar el mapa base.</b><br>
+      Esta versión necesita conexión a internet para descargar la librería del
+      mapa y las teselas. Si está en una red con restricciones, use la versión
+      sin internet: <code>observatorio_conectividad.html</code>.
+    </div>
+  </div>
+  <div class="panel" id="panel"></div>
+</div>
+
+<script>
+var META = {{META}};
+var DATOS = {{DATOS}};
+var GEOJSON = {{GEOJSON}};
+var IMG = {{IMG}};
+</script>
+<script>
+{{APP_JS}}
+</script>
+</body>
+</html>

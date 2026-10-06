@@ -1,0 +1,92 @@
+# Publica el Observatorio de Conectividad en GitHub Pages.
+#
+# Las rutas NO están escritas a mano: el flujo busca dónde quedaron los
+# proyectos dentro del repositorio. Así funciona sin importar si todo quedó
+# en la raíz o dentro de una carpeta.
+
+name: Publicar observatorio
+
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ubicar los proyectos
+        id: rutas
+        run: |
+          echo "--- Contenido del repositorio ---"
+          find . -maxdepth 3 -name "*.py" -not -path "./.git/*" | sort
+
+          OBS=$(find . -name publicar.py -not -path "./.git/*" | head -1)
+          if [ -z "$OBS" ]; then
+            echo "::error::No se encontró publicar.py. ¿Subió la carpeta observatorio?"
+            exit 1
+          fi
+          OBS=$(dirname "$OBS")
+
+          FICHA=$(find . -name build.py -not -path "./.git/*" \
+                  | grep -v "^${OBS}/" | head -1)
+          if [ -n "$FICHA" ]; then FICHA=$(dirname "$FICHA"); fi
+
+          echo "obs=$OBS"     >> "$GITHUB_OUTPUT"
+          echo "ficha=$FICHA" >> "$GITHUB_OUTPUT"
+          echo "Observatorio: $OBS"
+          echo "Ficha: ${FICHA:-(no encontrada)}"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        working-directory: ${{ steps.rutas.outputs.obs }}
+        run: pip install -r requirements.txt
+
+      - name: Construir el sitio
+        working-directory: ${{ steps.rutas.outputs.obs }}
+        env:
+          SP_MODO: ${{ vars.SP_MODO }}
+          SP_TENANT_ID: ${{ secrets.SP_TENANT_ID }}
+          SP_CLIENT_ID: ${{ secrets.SP_CLIENT_ID }}
+          SP_CLIENT_SECRET: ${{ secrets.SP_CLIENT_SECRET }}
+          SP_HOST: ${{ vars.SP_HOST }}
+          SP_SITIO: ${{ vars.SP_SITIO }}
+          SP_RUTA: ${{ vars.SP_RUTA }}
+          SP_ENLACE: ${{ secrets.SP_ENLACE }}
+          FICHA: ${{ steps.rutas.outputs.ficha }}
+        run: |
+          if [ -n "$FICHA" ]; then
+            python publicar.py --ficha "$GITHUB_WORKSPACE/$FICHA"
+          else
+            python publicar.py
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.rutas.outputs.obs }}/sitio
+
+  desplegar:
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - id: pages
+        uses: actions/deploy-pages@v4
