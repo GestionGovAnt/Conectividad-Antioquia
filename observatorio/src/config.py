@@ -85,16 +85,18 @@ EJES = [
      "cobertura": "Puntos con kit satelital sobre el total de puntos conectados",
      "icono": "salud"},
     {"id": "seguridad", "nombre": "Seguridad", "color": "#38A3FF",
-     "unidad": "Entornos seguros y fibra óptica",
-     "unidad_desc": "Placas deportivas intervenidas con cámaras e iluminación, "
-                    "más los municipios que hacen parte del proyecto de fibra.",
+     "unidad": "Entornos educativos seguros",
+     "unidad_desc": "Placas deportivas intervenidas con cámaras e iluminación. "
+                    "Cada registro es una placa, no una cámara. El proyecto de "
+                    "fibra se reporta aparte en el detalle.",
      "cobertura": None,
      "icono": "escudo"},
     {"id": "tic", "nombre": "TIC", "color": "#FFB020",
-     "unidad": "DataCenter y puntos de conectividad",
-     "unidad_desc": "DataCenter entregados más puntos de acceso público "
-                    "georreferenciados.",
-     "cobertura": "Municipios con PETI formulado sobre el total del ámbito",
+     "unidad": "Puntos de conectividad",
+     "unidad_desc": "Puntos de acceso público georreferenciados. Los DataCenter "
+                    "se reportan aparte en el detalle: son infraestructura de "
+                    "otra naturaleza y sumarlos daría una cifra sin sentido.",
+     "cobertura": "Municipios con DataCenter sobre el total del ámbito",
      "icono": "antena"},
 ]
 

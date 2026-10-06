@@ -127,8 +127,10 @@ def eje_seguridad(sab: Sabana, codigos: set[str]) -> dict:
         detalle["Metros medidos en el KMZ"] = metros_kmz
     detalle["Sin coordenadas"] = int(entornos["latitud"].isna().sum())
 
+    # La unidad del eje son los entornos. La fibra va en el detalle: sumar
+    # placas deportivas con municipios daría un número que no significa nada.
     return {
-        "unidades": total + int(fibra["cod"].nunique()),
+        "unidades": total,
         "universo": total,
         "cobertura": None,
         "pendientes": int(metros_reportados.isna().sum()),
@@ -166,16 +168,18 @@ def eje_tic(sab: Sabana, codigos: set[str]) -> dict:
     peti = peti[peti["cod"].isin(codigos)]
     con_peti = int((peti["estado_peti"] == "SI").sum())
 
+    dc_gobernacion = len(gob & codigos)
+    dc_propio = len(propio & codigos)
     datacenters = len((gob | propio) & codigos)
-    unidades = datacenters + len(wifi)
     return {
-        "unidades": unidades,
+        "unidades": int(len(wifi)),
         "universo": len(codigos),
-        "cobertura": _frac(con_peti, len(peti)) if len(peti) else None,
-        "pendientes": len(peti) - con_peti,
+        "cobertura": _frac(datacenters, len(codigos)) if codigos else None,
+        "pendientes": len(codigos) - datacenters,
         "detalle": {
-            "DataCenter": datacenters,
             "Puntos de conectividad": int(len(wifi)),
+            "DataCenter de la Gobernación": dc_gobernacion,
+            "DataCenter propio del municipio": dc_propio,
             "Personas formadas": personas,
             "Personas capacitadas": int(len(cap)),
             "Municipios con PETI": con_peti,
