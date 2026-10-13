@@ -77,9 +77,15 @@ class Sabana:
         maestro = _limpiar_columnas(
             self._libro.parse(cfg.HOJAS["municipios"][0])
         )
+        columna_maestro = self._columna_codigo(maestro)
+        if columna_maestro is None:
+            raise ValueError(
+                "La hoja Municipios no tiene columna COD_DANE ni COD_DANE_MPIO. "
+                "Sin ella no hay forma de cruzar las demás hojas."
+            )
         maestro["cod"] = (
-            maestro["COD_DANE"].astype(str)
-            .str.replace(r"\.0$", "", regex=True).str.zfill(5)
+            maestro[columna_maestro].astype(str)
+            .str.replace(r"\.0$", "", regex=True).str.strip().str.zfill(5)
         )
         maestro["llave"] = maestro["MUNICIPIO"].map(llave_municipio)
         self._llave_a_cod = dict(zip(maestro["llave"], maestro["cod"]))
@@ -101,31 +107,56 @@ class Sabana:
         self.municipios = maestro[["cod", "nombre", "subregion", "eat"]].copy()
         self.municipios = self.municipios.sort_values("nombre").reset_index(drop=True)
 
-        codigos_validos = set(maestro["cod"])
+        self._codigos_validos = set(maestro["cod"])
         self.usa_llave_dane = {}
+        self.hojas_faltantes: list[str] = []
         for clave, (hoja, col) in cfg.HOJAS.items():
             if clave == "municipios":
                 continue
+            if hoja not in self._libro.sheet_names:
+                # El Excel puede ser un extracto con solo algunas hojas. Se
+                # anota y sigue: quien necesite esa hoja decide si aborta.
+                self.hojas_faltantes.append(hoja)
+                continue
             df = _limpiar_columnas(self._libro.parse(hoja))
 
-            # Si la sábana ya viene normalizada, se cruza por COD_DANE_MPIO y
-            # no por nombre. Ese es el objetivo: que la tabla de alias deje de
-            # ser necesaria. Mientras tanto, se cae al cruce por nombre.
-            columna_cod = next(
-                (c for c in df.columns if c.upper() == "COD_DANE_MPIO"), None
-            )
+            # Si la sábana ya viene estandarizada, se cruza por el código DANE
+            # y no por nombre. Ese es el objetivo: que la tabla de alias deje
+            # de ser necesaria. Mientras tanto, se cae al cruce por nombre.
+            columna_cod = self._columna_codigo(df)
             if columna_cod is not None:
-                cod = (df[columna_cod].astype(str)
-                       .str.replace(r"\.0$", "", regex=True).str.zfill(5))
-                df["cod"] = cod.where(cod.isin(codigos_validos))
+                df["cod"] = self._codigos(df[columna_cod])
                 self.usa_llave_dane[clave] = True
             else:
                 df["cod"] = df[col].map(llave_municipio).map(self._llave_a_cod)
                 self.usa_llave_dane[clave] = False
             self.hojas[clave] = df
 
-        self._preparar_sedes()
-        self._preparar_peti()
+        if "sedes" in self.hojas:
+            self._preparar_sedes()
+        if "peti" in self.hojas:
+            self._preparar_peti()
+
+    # ----------------------------------------------------------------------
+    @staticmethod
+    def _columna_codigo(df: pd.DataFrame) -> str | None:
+        """La columna del código DANE, con cualquiera de los dos nombres.
+
+        La sábana normalizada por el proyecto la llama COD_DANE_MPIO, la
+        estandarizada a mano la llama COD_DANE y la hoja de SALUD la llama
+        codigo_dane. Las tres son la misma llave.
+        """
+        nombres = {str(c).strip().upper(): c for c in df.columns}
+        for candidato in ("COD_DANE_MPIO", "COD_DANE", "CODIGO_DANE"):
+            if candidato in nombres:
+                return nombres[candidato]
+        return None
+
+    def _codigos(self, serie: pd.Series) -> pd.Series:
+        """Código a cinco dígitos como texto, descartando los que no existen."""
+        cod = (serie.astype(str)
+               .str.replace(r"\.0$", "", regex=True).str.strip().str.zfill(5))
+        return cod.where(cod.isin(self._codigos_validos))
 
     # ----------------------------------------------------------------------
     def _preparar_sedes(self) -> None:
@@ -159,9 +190,19 @@ class Sabana:
     # ----------------------------------------------------------------------
     def _preparar_peti(self) -> None:
         df = self.hojas["peti"]
+        # La etiqueta se homologa sin distinguir mayúsculas ni tildes. La
+        # sábana ha traído el mismo estado como «Inicio proceso de
+        # acompañamiento» y como «INICIO PROCESO DE ACOMPAÑAMIENTO»; con una
+        # comparación exacta, la segunda forma se perdía del tablero sin
+        # avisar y el reparto quedaba mostrando solo los «SI».
+        etiquetas = {normalizar(k): v for k, v in cfg.ETIQUETA_ESTADO.items()}
         for origen, destino in [("ESTADO PETI", "estado_peti"),
                                 ("ESTADO PAMUDA", "estado_pamuda")]:
-            df[destino] = df[origen].astype(str).str.strip()
+            crudo = df[origen].astype(str).str.strip()
+            df[destino] = [
+                etiquetas.get(normalizar(v), titulo_es(v) if v else "Sin dato")
+                for v in crudo
+            ]
         df["madurez"] = (
             df["FICHA MADUREZ (NIVEL)"].astype(str).str.strip()
             .replace({"nan": "Sin ficha"})
@@ -172,9 +213,36 @@ class Sabana:
     def hoja(self, clave: str) -> pd.DataFrame:
         return self.hojas[clave]
 
+    def hoja_opcional(self, nombre: str) -> pd.DataFrame | None:
+        """Hoja que puede no existir todavía, ya cruzada por COD_DANE_MPIO.
+
+        Para hojas que se van sumando a la sábana sin que el tablero dependa
+        de ellas: si no está, el build sigue igual en vez de romperse.
+        """
+        if nombre not in self._libro.sheet_names:
+            return None
+        df = _limpiar_columnas(self._libro.parse(nombre))
+        columna = self._columna_codigo(df)
+        if columna is None:
+            return None
+        df["cod"] = self._codigos(df[columna])
+        return df
+
     def por_municipio(self, clave: str, cod: str) -> pd.DataFrame:
         df = self.hojas[clave]
         return df[df["cod"] == cod]
+
+    def sin_cruce(self) -> dict[str, int]:
+        """Filas que no quedaron asignadas a ningún municipio.
+
+        Una fila sin COD_DANE_MPIO —o con un nombre que no cruza— queda fuera
+        de TODOS los conteos, también del departamental. Es la forma más
+        silenciosa de perder datos: el tablero compila bien y la cifra
+        simplemente no sube.
+        """
+        return {clave: int(df["cod"].isna().sum())
+                for clave, df in self.hojas.items()
+                if int(df["cod"].isna().sum()) > 0}
 
     def resumen(self) -> dict:
         """Conteos de control para el log de la construcción."""

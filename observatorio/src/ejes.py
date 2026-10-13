@@ -10,6 +10,7 @@ from __future__ import annotations
 import pandas as pd
 
 from . import config as cfg
+from . import datacenter
 from .loader import Sabana
 
 
@@ -25,6 +26,33 @@ def _reparto(serie: pd.Series, orden=None) -> list[dict]:
         {"nombre": k, "total": int(conteo.get(k, 0)),
          "part": _frac(conteo.get(k, 0), total)}
         for k in claves if int(conteo.get(k, 0)) > 0
+    ]
+
+
+def _etiqueta_estado(valor) -> str:
+    """Estado del PETI o del PAMUDA como etiqueta de presentación.
+
+    La sábana ha guardado este campo de dos formas: el texto largo original
+    («Inicio proceso de acompañamiento») y la etiqueta ya resumida («En
+    proceso»). Traducir solo lo que viene sin traducir deja las dos
+    funcionando. Antes se traducía siempre, así que el día que la fuente pasó
+    a guardar la etiqueta, el conteo de municipios con PETI cayó a cero y los
+    dos repartos quedaron vacíos sin que nada fallara.
+    """
+    texto = str(valor).strip()
+    return cfg.ETIQUETA_ESTADO.get(texto, texto)
+
+
+def _filas_fijas(pares: list[tuple[str, int]], total: int) -> list[dict]:
+    """Reparto con categorías ya contadas, sobre un total conocido.
+
+    A diferencia de _reparto, el denominador es el universo del ámbito y no
+    la suma de las categorías: así «Sin información» se lee como la porción
+    del territorio que falta por medir, que es justo lo que interesa ver.
+    """
+    return [
+        {"nombre": nombre, "total": int(valor), "part": _frac(valor, total)}
+        for nombre, valor in pares if int(valor) > 0
     ]
 
 
@@ -143,11 +171,11 @@ def eje_tic(sab: Sabana, codigos: set[str]) -> dict:
     consolidados = sab.hoja("consolidados")
     territorial = sab.hoja("territorial")
 
-    dc = consolidados[(consolidados["Punto"] == "DATACENTER")
-                      & consolidados["cod"].isin(codigos)]
-    obs = dc["observacion"].astype(str).str.strip()
-    gob = set(dc.loc[obs == "GOBERNACIÓN", "cod"])
-    propio = set(dc.loc[obs == "PROPIO", "cod"])
+    # El estado de DataCenter sale de la tabla que une las cuatro fuentes
+    # (registro, inventario, diagnóstico y encuesta), no de una sola hoja.
+    # Así un municipio que solo aparece en la encuesta entra en el conteo.
+    estado_dc = datacenter.tabla(sab)
+    ambito_dc = estado_dc[estado_dc["COD_DANE"].isin(codigos)]
 
     wifi = pd.concat([
         territorial[territorial["Punto"].astype(str).str.strip() == "ZONAS WIFI"],
@@ -166,30 +194,57 @@ def eje_tic(sab: Sabana, codigos: set[str]) -> dict:
 
     peti = sab.hoja("peti")
     peti = peti[peti["cod"].isin(codigos)]
-    con_peti = int((peti["estado_peti"] == "SI").sum())
+    con_peti = int((peti["estado_peti"].map(_etiqueta_estado) == "Sí").sum())
 
-    dc_gobernacion = len(gob & codigos)
-    dc_propio = len(propio & codigos)
-    datacenters = len((gob | propio) & codigos)
+    dc_gobernacion = int((ambito_dc["ORIGEN"] == datacenter.ORIGEN_GOBERNACION).sum())
+    dc_propio = int((ambito_dc["ORIGEN"] == datacenter.ORIGEN_PROPIO).sum())
+    datacenters = dc_gobernacion + dc_propio
+    # Un municipio del que ninguna fuente dice nada no es un municipio sin
+    # DataCenter: es un municipio sin medir. Se cuenta aparte.
+    sin_info_dc = int((ambito_dc["FUENTE"] == "").sum())
+    sin_dc = int((ambito_dc["TIENE_DATACENTER"] == "NO").sum())
+
+    # En la ficha de un solo municipio, «cuántos municipios» no dice nada:
+    # la cobertura de información solo tiene sentido sobre un territorio.
+    varios = len(codigos) > 1
+    detalle = {
+        "Puntos de conectividad": int(len(wifi)),
+        "DataCenter de la Gobernación": dc_gobernacion,
+        "DataCenter propio del municipio": dc_propio,
+    }
+    if varios:
+        detalle["Municipios sin información de DataCenter"] = sin_info_dc
+    detalle.update({
+        "Personas formadas": personas,
+        "Personas capacitadas": int(len(cap)),
+        "Municipios con PETI": con_peti,
+    })
+
+    repartos = []
+    if varios:
+        # Los cuatro estados suman el ámbito completo. El cuarto son los
+        # municipios encuestados que todavía no contestaron: ni tienen ni
+        # dejan de tener, y meterlos en cualquiera de los otros mentiría.
+        pendientes_dc = len(codigos) - datacenters - sin_dc - sin_info_dc
+        repartos.append({"titulo": "Información de DataCenter",
+                         "filas": _filas_fijas([
+                             ("Con DataCenter", datacenters),
+                             ("Respondió que no tiene", sin_dc),
+                             ("Encuesta sin responder", pendientes_dc),
+                             ("Sin información", sin_info_dc),
+                         ], len(codigos))})
     return {
         "unidades": int(len(wifi)),
         "universo": len(codigos),
         "cobertura": _frac(datacenters, len(codigos)) if codigos else None,
         "pendientes": len(codigos) - datacenters,
-        "detalle": {
-            "Puntos de conectividad": int(len(wifi)),
-            "DataCenter de la Gobernación": dc_gobernacion,
-            "DataCenter propio del municipio": dc_propio,
-            "Personas formadas": personas,
-            "Personas capacitadas": int(len(cap)),
-            "Municipios con PETI": con_peti,
-        },
-        "repartos": [
+        "detalle": detalle,
+        "repartos": repartos + [
             {"titulo": "Estado del PETI", "filas": _reparto(
-                peti["estado_peti"].map(cfg.ETIQUETA_ESTADO))} if len(peti) else
+                peti["estado_peti"].map(_etiqueta_estado))} if len(peti) else
             {"titulo": "Estado del PETI", "filas": []},
             {"titulo": "Estado del PAMUDA", "filas": _reparto(
-                peti["estado_pamuda"].map(cfg.ETIQUETA_ESTADO))} if len(peti) else
+                peti["estado_pamuda"].map(_etiqueta_estado))} if len(peti) else
             {"titulo": "Estado del PAMUDA", "filas": []},
         ],
     }
@@ -228,11 +283,42 @@ def _filtro_capa(capa: dict, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _tabla_datacenter(sab: Sabana) -> pd.DataFrame:
+    """Un registro por municipio con DataCenter, con su coordenada si la hay.
+
+    La capa salía de la hoja Consolidados filtrando Punto = DATACENTER, y ahí
+    cada equipo del inventario es una fila: 361 filas para 47 DataCenter. El
+    tablero mostraba «361» como si fueran DataCenter y «38» como ubicados.
+
+    Ahora la lista de municipios sale de la tabla que cruza las cuatro
+    fuentes —la misma que alimenta el panel, así que las dos cifras no pueden
+    discrepar— y la coordenada se busca en el registro territorial. El
+    municipio que no tenga coordenada cuenta igual y se reporta como sin
+    ubicar, que es la verdad: el DataCenter existe, lo que falta es el punto.
+    """
+    estado = datacenter.tabla(sab)
+    con_dc = estado[estado["TIENE_DATACENTER"] == "SI"][["COD_DANE"]].copy()
+
+    registro = sab.hoja("territorial")
+    registro = registro[registro["Punto"].astype(str).str.strip() == "DATACENTER"]
+    coords = (registro.dropna(subset=["cod"])
+              .drop_duplicates(subset=["cod"])
+              .set_index("cod")[["latitud", "longitud"]])
+
+    con_dc["cod"] = con_dc["COD_DANE"]
+    con_dc["latitud"] = con_dc["cod"].map(coords["latitud"])
+    con_dc["longitud"] = con_dc["cod"].map(coords["longitud"])
+    return con_dc
+
+
 def capas(sab: Sabana) -> list[dict]:
     """Puntos georreferenciados listos para dibujar sobre el lienzo SVG."""
     salida = []
     for capa in cfg.CAPAS:
-        df = _filtro_capa(capa, sab.hoja(capa["hoja"]))
+        if capa["id"] == "datacenter":
+            df = _tabla_datacenter(sab)
+        else:
+            df = _filtro_capa(capa, sab.hoja(capa["hoja"]))
         lat = pd.to_numeric(df["latitud"], errors="coerce")
         lon = pd.to_numeric(df["longitud"], errors="coerce")
         valida = (lat.between(cfg.BBOX["lat_min"], cfg.BBOX["lat_max"])
