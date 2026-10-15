@@ -50,7 +50,7 @@ def main() -> int:
     print(f"  índice departamental: {dep['indice']:.1%}")
 
     print("Generando informe ...")
-    destino = render.generar(datos, args.salida)
+    destino = render.generar(datos, args.salida, args.sabana)
     print(f"  {destino}  ({destino.stat().st_size/1024:.0f} KB)")
 
     print("Exportando cifras a Excel ...")

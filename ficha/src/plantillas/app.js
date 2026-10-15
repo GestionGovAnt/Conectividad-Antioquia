@@ -474,6 +474,19 @@
   }
 
   /* ---------------- render ---------------- */
+
+  // Dos fechas, porque responden preguntas distintas: de cuándo es el dato
+  // y de cuándo es el papel que alguien tiene en la mano. Sin corte no se
+  // escribe nada: una ficha sin fecha es mejor que una con fecha inventada.
+  function sello() {
+    if (!META.corte_texto) return "";
+    var texto = "Datos con corte al " + META.corte_texto;
+    if (META.generado_texto) {
+      texto += " · documento generado el " + META.generado_texto;
+    }
+    return '<span class="bcorte">' + texto + "</span>";
+  }
+
   function pintar(titulo, meta, sub, cuerpo) {
     document.getElementById("informe").innerHTML =
       '<img class="pagebg" src="data:image/jpeg;base64,' + IMG.fondo + '" alt="">' +
@@ -483,7 +496,8 @@
       titulo + '</div><div class="meta">' + meta + "</div></div></div>" +
       '<div class="brand"><img class="badge" src="data:image/png;base64,' + IMG.logo +
       '" alt="Gobernación de Antioquia"><div class="brandtxt"><b>' + META.entidad +
-      "</b><br>" + META.dependencia + '<span class="bdoc">' + sub + "</span></div></div>" +
+      "</b><br>" + META.dependencia + '<span class="bdoc">' + sub + "</span>" +
+      sello() + "</div></div>" +
       cuerpo;
   }
 

@@ -15,6 +15,7 @@ from datetime import date
 from pathlib import Path
 
 from . import config as cfg
+from . import fechas
 
 
 def _leer(ruta: Path) -> str:
@@ -29,19 +30,28 @@ def _json(objeto) -> str:
     return json.dumps(objeto, ensure_ascii=False, separators=(",", ":"))
 
 
-def generar(datos: dict, destino: Path | None = None) -> Path:
+def generar(datos: dict, destino: Path | None = None,
+            sabana: Path | None = None) -> Path:
     destino = destino or cfg.ARCHIVO_SALIDA
     destino.parent.mkdir(parents=True, exist_ok=True)
 
+    # Dos fechas distintas y las dos importan en una ficha impresa: cuándo
+    # cambiaron los datos y cuándo se generó el documento (ver fechas.py).
+    corte = fechas.corte_de_datos(sabana or cfg.ARCHIVO_SABANA)
+    hoy = date.today()
+
     plantilla = _leer(cfg.DIR_PLANTILLAS / "base.html")
     reemplazos = {
-        "{{FECHA}}": date.today().strftime("%d/%m/%Y"),
+        "{{FECHA}}": hoy.strftime("%d/%m/%Y"),
         "{{ESTILOS}}": _leer(cfg.DIR_PLANTILLAS / "estilos.css"),
         "{{APP_JS}}": _leer(cfg.DIR_PLANTILLAS / "app.js"),
         "{{META}}": _json({
             "entidad": cfg.ENTIDAD,
             "dependencia": cfg.DEPENDENCIA,
-            "fecha": date.today().isoformat(),
+            "fecha": hoy.isoformat(),
+            "corte": corte.isoformat() if corte else None,
+            "corte_texto": fechas.en_letras(corte),
+            "generado_texto": fechas.corta(hoy),
         }),
         "{{DATOS}}": _json(datos),
         "{{GEO}}": _leer(cfg.ARCHIVO_GEO).strip(),
