@@ -130,7 +130,7 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
       enviar = document.getElementById("enviar"),
       estado = document.getElementById("estado");
 
-  var archivo = null, disponible = true, etagInicial = null;
+  var archivo = null, disponible = true;
 
   // ---------- mensajes (siempre como texto, nunca como HTML) ----------
   function mostrar(tipo, texto, detalle, enlace, accion) {
@@ -198,15 +198,14 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
                "Funciona solo publicada en Vercel.",
                { href: SITIO_CARGA + "/subir.html", texto: "Ir a la página de carga →" });
     });
-    // Huella del tablero publicado, para saber cuándo cambió.
-    huella().then(function (h) { etagInicial = h; });
   }
 
-  function huella() {
-    return fetch("index.html", { method: "HEAD", cache: "no-store" })
-      .then(function (r) {
-        return r.headers.get("etag") || r.headers.get("last-modified") || null;
-      }).catch(function () { return null; });
+  // Commit del que salió el sitio publicado (lo escribe publicar.py).
+  function commitPublicado() {
+    return fetch("version.json?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (v) { return v.commit || ""; })
+      .catch(function () { return ""; });
   }
 
   // ---------- elegir archivo ----------
@@ -326,15 +325,15 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
     });
   }
 
-  // Pregunta cada 10 s si el tablero publicado cambió (máximo 6 minutos).
+  // Pregunta cada 10 s si el sitio publicado ya sale del commit de esta
+  // carga (máximo 6 minutos).
   function esperarTablero(enlace, commit, corte) {
     var intentos = 0;
     var tick = setInterval(function () {
       intentos++;
-      huella().then(function (h) {
-        if (h && etagInicial && h !== etagInicial) {
+      commitPublicado().then(function (c) {
+        if (commit && c && c.indexOf(commit) === 0) {
           clearInterval(tick);
-          etagInicial = h;
           mostrar("ok", "Listo: el tablero ya muestra los datos nuevos.",
                   (corte ? corte + " " : "") + "Commit " + (commit || "") + ".",
                   { href: "index.html", texto: "Ver el tablero →" });

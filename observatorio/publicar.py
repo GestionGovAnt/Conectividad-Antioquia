@@ -90,6 +90,17 @@ def main() -> int:
     # desactiva Jekyll. Este archivo vacío lo desactiva.
     (SITIO / ".nojekyll").write_text("", encoding="utf-8")
 
+    # De qué commit salió esta publicación. La página de carga lo consulta
+    # para saber cuándo quedó en línea su archivo: comparar el HTML no sirve,
+    # porque una sábana con los mismos datos produce el mismo HTML.
+    import json, os
+    from datetime import datetime, timezone
+    (SITIO / "version.json").write_text(json.dumps({
+        "commit": os.environ.get("VERCEL_GIT_COMMIT_SHA")
+                  or os.environ.get("GITHUB_SHA") or "",
+        "generado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }), encoding="utf-8")
+
     print("\nSitio listo en", SITIO)
     for archivo in sorted(SITIO.iterdir()):
         if archivo.name.startswith("."):
