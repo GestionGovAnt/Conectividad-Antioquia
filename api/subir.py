@@ -10,7 +10,14 @@ archivo y lo deja donde el build lo espera.
         X-Clave:          la clave de carga (SUBIDA_CLAVE)
         X-Nombre-Archivo: nombre original, codificado con encodeURIComponent
         X-Autor:          quién sube, opcional, mismo formato
+        X-Forzar: 1       publicar aunque sea más antiguo que el publicado
         cuerpo:           el .xlsx tal cual (application/octet-stream)
+
+    Candado de fechas: si el archivo se guardó en Excel ANTES que el que está
+    publicado, se rechaza con 409 y codigo="mas_antiguo"; la página ofrece
+    entonces confirmar (X-Forzar). La fecha es la misma que la ficha muestra
+    como fecha de corte. El archivo anterior nunca se borra: queda en el
+    historial de git.
 
     GET /api/subir        dice si la carga está configurada (sin revelar nada)
 
@@ -65,16 +72,23 @@ HOJAS_REQUERIDAS = (
 )
 
 NS_HOJA = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+NS_FECHA = "{http://purl.org/dc/terms/}modified"
 COLOMBIA = timezone(timedelta(hours=-5))
+MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+         "agosto", "septiembre", "octubre", "noviembre", "diciembre")
 
 
 class ErrorCarga(Exception):
-    """Error que se le puede mostrar tal cual a quien sube el archivo."""
+    """Error que se le puede mostrar tal cual a quien sube el archivo.
 
-    def __init__(self, estado: int, mensaje: str):
+    `extra` viaja en la respuesta JSON; la página lo usa para ofrecer una
+    acción (por ejemplo, confirmar un archivo más antiguo)."""
+
+    def __init__(self, estado: int, mensaje: str, **extra):
         super().__init__(mensaje)
         self.estado = estado
         self.mensaje = mensaje
+        self.extra = extra
 
 
 # --------------------------------------------------------------------------
@@ -142,6 +156,43 @@ def validar_libro(datos: bytes) -> list[str]:
     return hojas
 
 
+def fecha_guardado(datos: bytes) -> datetime | None:
+    """Último guardado del libro, según el propio archivo (en UTC).
+
+    Es la MISMA fecha que la ficha imprime como «Datos con corte al …»
+    (ficha/src/fechas.py la lee con openpyxl: properties.modified). Excel la
+    reescribe en cada guardado y viaja dentro del archivo, así que sirve
+    para saber cuál de dos sábanas es más reciente.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(datos)) as z:
+            info = z.getinfo("docProps/core.xml")
+            if info.file_size > 256 * 1024:
+                return None
+            raiz = ElementTree.fromstring(z.read(info))
+    except (KeyError, zipfile.BadZipFile, ElementTree.ParseError):
+        return None
+    nodo = raiz.find(NS_FECHA)
+    texto = (nodo.text or "").strip() if nodo is not None else ""
+    if not texto:
+        return None
+    try:
+        marca = datetime.fromisoformat(texto.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if marca.tzinfo is None:          # openpyxl la trata como UTC
+        marca = marca.replace(tzinfo=timezone.utc)
+    return marca
+
+
+def en_letras(marca: datetime | None) -> str:
+    """15 de octubre de 2026, en hora de Colombia (igual que la ficha)."""
+    if marca is None:
+        return ""
+    d = marca.astimezone(COLOMBIA).date()
+    return f"{d.day} de {MESES[d.month - 1]} de {d.year}"
+
+
 def sha_git(datos: bytes) -> str:
     """El SHA que GitHub le asigna a un archivo con este contenido."""
     return hashlib.sha1(b"blob %d\0" % len(datos) + datos).hexdigest()
@@ -179,28 +230,82 @@ def _json(crudo: bytes) -> dict:
         return {}
 
 
-def guardar_en_github(cfg: dict, datos: bytes, archivo: str, autor: str) -> dict:
+def _con_hora(marca: datetime) -> str:
+    local = marca.astimezone(COLOMBIA)
+    return f"{en_letras(marca)} a las {local:%H:%M}"
+
+
+def _contenido_publicado(cfg: dict, sha: str) -> bytes | None:
+    """Bytes de la sábana publicada (API de blobs: sirve hasta 100 MB)."""
+    estado, blob = _github(cfg, "GET", f"/repos/{cfg['repo']}/git/blobs/{sha}")
+    if estado != 200 or blob.get("encoding") != "base64":
+        return None
+    try:
+        return base64.b64decode(blob.get("content", ""))
+    except ValueError:
+        return None
+
+
+def guardar_en_github(cfg: dict, datos: bytes, archivo: str, autor: str,
+                      forzar: bool = False) -> dict:
     ruta_api = (f"/repos/{cfg['repo']}/contents/"
                 f"{urllib.parse.quote(cfg['ruta'])}")
     rama = urllib.parse.quote(cfg["rama"])
 
     estado, actual = _github(cfg, "GET", f"{ruta_api}?ref={rama}")
-    if estado in (401, 403):
-        raise ErrorCarga(503, "GitHub rechazó el token configurado (vencido o sin "
-                              "permiso de escritura sobre el repositorio). Hay que "
-                              "renovar GITHUB_TOKEN en Vercel.")
+    if estado == 401:
+        print("subir: GitHub respondió 401 al leer la sábana (token inválido)")
+        raise ErrorCarga(503, "GitHub no reconoce el token guardado en Vercel: está "
+                              "mal copiado, vencido o fue regenerado. Hay que "
+                              "volver a pegar GITHUB_TOKEN completo en Vercel "
+                              "(empieza por github_pat_) y redesplegar.")
+    if estado == 403:
+        raise ErrorCarga(503, "El token de GitHub no tiene acceso a este "
+                              "repositorio. Revise que incluya "
+                              f"{cfg['repo']} con permiso Contents.")
     if estado not in (200, 404):
         raise ErrorCarga(502, f"GitHub respondió {estado} al leer la sábana actual.")
     sha_actual = actual.get("sha") if estado == 200 else None
 
+    nueva = fecha_guardado(datos)
     if sha_actual and sha_actual == sha_git(datos):
-        return {"estado": "sin_cambios"}
+        return {"estado": "sin_cambios", "corte": en_letras(nueva)}
+
+    # La fecha de corte de la ficha sale de aquí. Un libro sin ella haría que
+    # la ficha cayera a la fecha de descarga del servidor, que es inventada.
+    if nueva is None:
+        raise ErrorCarga(422, "El archivo no trae la fecha de su último guardado, "
+                              "y sin ella la ficha no puede mostrar la fecha de "
+                              "corte. Ábralo en Excel, guárdelo y vuelva a subirlo.")
+
+    # Candado contra subir una sábana vieja por error: se compara con la
+    # fecha de guardado de la que está publicada.
+    publicada = None
+    if sha_actual:
+        previo = _contenido_publicado(cfg, sha_actual)
+        publicada = fecha_guardado(previo) if previo else None
+    mas_antiguo = publicada is not None and nueva < publicada
+    if mas_antiguo and not forzar:
+        raise ErrorCarga(
+            409,
+            "Este archivo es más antiguo que el publicado. El suyo se guardó el "
+            f"{_con_hora(nueva)}; el publicado, el {_con_hora(publicada)}. "
+            "Si lo publica, la ficha mostrará como fecha de corte el "
+            f"{en_letras(nueva)}.",
+            codigo="mas_antiguo",
+            corte_nuevo=en_letras(nueva),
+            corte_publicado=en_letras(publicada),
+        )
 
     ahora = datetime.now(COLOMBIA).strftime("%Y-%m-%d %H:%M")
     mensaje = ("Actualizar sábana desde el formulario web\n\n"
                f"Archivo: {archivo or 'sin nombre'}\n"
                f"Subido por: {autor or 'sin nombre'}\n"
-               f"Fecha: {ahora} (hora Colombia)")
+               f"Fecha de corte del archivo: {en_letras(nueva)}\n"
+               f"Fecha de carga: {ahora} (hora Colombia)")
+    if mas_antiguo:
+        mensaje += ("\n\nAtención: reemplaza una versión más reciente (corte "
+                    f"{en_letras(publicada)}). Quien subió el archivo lo confirmó.")
     cuerpo = {
         "message": mensaje,
         "content": base64.b64encode(datos).decode("ascii"),
@@ -213,9 +318,11 @@ def guardar_en_github(cfg: dict, datos: bytes, archivo: str, autor: str) -> dict
     if estado in (409, 422) and sha_actual:
         raise ErrorCarga(409, "Otra actualización llegó al mismo tiempo. "
                               "Espere un minuto y vuelva a subir el archivo.")
-    if estado in (401, 403):
-        raise ErrorCarga(503, "El token de GitHub no tiene permiso de escritura "
-                              "sobre el repositorio. Hay que revisar GITHUB_TOKEN.")
+    if estado in (401, 403, 404):
+        print(f"subir: GitHub respondió {estado} al guardar la sábana")
+        raise ErrorCarga(503, "El token de GitHub puede leer el repositorio pero no "
+                              "escribir en él. Necesita el permiso Contents en "
+                              "«Read and write».")
     if estado not in (200, 201):
         raise ErrorCarga(502, f"GitHub respondió {estado} al guardar el archivo.")
 
@@ -224,6 +331,8 @@ def guardar_en_github(cfg: dict, datos: bytes, archivo: str, autor: str) -> dict
         "estado": "actualizado",
         "commit": (commit.get("sha") or "")[:7],
         "url": commit.get("html_url", ""),
+        "corte": en_letras(nueva),
+        "reemplazo_mas_reciente": mas_antiguo,
     }
 
 
@@ -271,7 +380,9 @@ def procesar(cabeceras, leer_cuerpo) -> tuple[int, dict]:
     archivo = _texto_cabecera(cabeceras.get("X-Nombre-Archivo"))
     autor = _texto_cabecera(cabeceras.get("X-Autor"), 80)
 
-    resultado = guardar_en_github(cfg, datos, archivo, autor)
+    forzar = cabeceras.get("X-Forzar", "") == "1"
+
+    resultado = guardar_en_github(cfg, datos, archivo, autor, forzar)
     resultado.update({"ok": True, "hojas": len(hojas), "bytes": len(datos)})
     return 200, resultado
 
@@ -285,7 +396,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             estado, cuerpo = procesar(self.headers, self.rfile.read)
         except ErrorCarga as e:
-            estado, cuerpo = e.estado, {"ok": False, "error": e.mensaje}
+            estado, cuerpo = e.estado, {"ok": False, "error": e.mensaje, **e.extra}
         except Exception as e:  # noqa: BLE001 — nunca devolver la traza al navegador
             print(f"subir: error inesperado: {type(e).__name__}: {e}")
             estado, cuerpo = 500, {"ok": False,

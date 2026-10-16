@@ -97,8 +97,23 @@ rechaza y no publica nada. Si está bien, lo guarda como
 de quien lo subió. Ese commit reconstruye Vercel y GitHub Pages. Si el archivo
 es idéntico al publicado, no hace nada.
 
-Si una carga sale mal, el historial del archivo en GitHub permite volver a la
-versión anterior.
+**Fecha de corte.** La ficha imprime «Datos con corte al …» usando la fecha en
+que el Excel se guardó por última vez, que va escrita dentro del propio archivo
+(ver `ficha/src/fechas.py`). La carga guarda el archivo byte por byte, así que
+esa fecha llega intacta. Ojo: si alguien abre una sábana vieja y le da Guardar,
+Excel le pone la fecha de ese día.
+
+**Candado contra sábanas viejas.** Si el archivo que se sube se guardó *antes*
+que el publicado, la carga se detiene y muestra las dos fechas. Solo se publica
+si la persona lo confirma con «Publicar de todos modos», y el commit lo deja
+anotado. Un libro sin fecha de guardado se rechaza, porque la ficha no podría
+mostrar la fecha de corte.
+
+**Nada se borra.** Cada carga reemplaza `sabana_unica_visor.xlsx`, pero las
+versiones anteriores quedan en el historial de git. Para recuperar una: en
+GitHub abra el archivo → **History** → elija la versión → descárguela (**View
+file → Download raw**) y vuelva a subirla con la página de carga, confirmando
+que es más antigua.
 
 ### Configurar la carga (una sola vez)
 

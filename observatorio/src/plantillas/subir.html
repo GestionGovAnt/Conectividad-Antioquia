@@ -54,6 +54,10 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
 .estado.info{display:block;border-color:var(--borde);background:rgba(255,255,255,.03)}
 .estado.aviso{display:block;border-color:var(--aviso);background:rgba(255,176,32,.07)}
 .estado .det{display:block;margin-top:6px;font-size:12.5px;color:var(--suave)}
+.estado button.accion{display:block;margin-top:10px;font:inherit;font-size:13px;
+  font-weight:700;padding:8px 12px;border-radius:7px;cursor:pointer;
+  background:transparent;color:var(--aviso);border:1px solid var(--aviso)}
+.estado button.accion:hover{background:rgba(255,176,32,.12)}
 .giro{display:inline-block;width:12px;height:12px;border:2px solid var(--suave);
   border-top-color:transparent;border-radius:50%;margin-right:8px;
   animation:g .8s linear infinite;vertical-align:-1px}
@@ -101,8 +105,10 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
 
   <p class="pie">
     Cada carga queda registrada como un commit en el repositorio, con el nombre
-    de quien subió el archivo; si algo sale mal se puede volver a la versión
-    anterior. Si el archivo no trae las hojas esperadas, no se publica nada.
+    de quien subió el archivo; la versión anterior no se borra y se puede
+    recuperar. Si el archivo no trae las hojas esperadas, no se publica nada.
+    Si se guardó en Excel antes que el que está publicado, se pide confirmar:
+    esa fecha de guardado es la que la ficha muestra como fecha de corte.
   </p>
 </main>
 
@@ -127,7 +133,7 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
   var archivo = null, disponible = true, etagInicial = null;
 
   // ---------- mensajes (siempre como texto, nunca como HTML) ----------
-  function mostrar(tipo, texto, detalle, enlace) {
+  function mostrar(tipo, texto, detalle, enlace, accion) {
     estado.className = "estado " + tipo;
     estado.textContent = "";
     if (tipo === "info") {
@@ -148,6 +154,14 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
         d.appendChild(a);
       }
       estado.appendChild(d);
+    }
+    if (accion) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "accion";
+      b.textContent = accion.texto;
+      b.onclick = accion.alHacerClic;
+      estado.appendChild(b);
     }
   }
   function bloquear(texto, detalle, enlace) {
@@ -248,18 +262,27 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
   form.onsubmit = function (e) {
     e.preventDefault();
     if (enviar.disabled) return;
+    subir(false);
+  };
+
+  // forzar: publicar aunque el archivo sea más antiguo que el publicado.
+  // Solo se envía después de que la persona lo confirma en el aviso.
+  function subir(forzar) {
     recordarAutor();
     enviar.disabled = true;
     mostrar("info", "Subiendo y revisando el archivo…");
 
+    var cabeceras = {
+      "Content-Type": "application/octet-stream",
+      "X-Clave": clave.value,
+      "X-Nombre-Archivo": encodeURIComponent(archivo.name),
+      "X-Autor": encodeURIComponent(autor.value.trim())
+    };
+    if (forzar) cabeceras["X-Forzar"] = "1";
+
     fetch(ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "X-Clave": clave.value,
-        "X-Nombre-Archivo": encodeURIComponent(archivo.name),
-        "X-Autor": encodeURIComponent(autor.value.trim())
-      },
+      headers: cabeceras,
       body: archivo
     }).then(function (r) {
       return r.json().catch(function () {
@@ -268,32 +291,43 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
           : "El servidor respondió " + r.status + "." };
       });
     }).then(function (j) {
+      if (!j.ok && j.codigo === "mas_antiguo") {
+        mostrar("aviso", "No se publicó: " + j.error,
+                "Si es un error, elija la sábana más reciente. Si de verdad quiere " +
+                "volver a esta versión, confírmelo:", null,
+                { texto: "Publicar de todos modos (corte " + j.corte_nuevo + ")",
+                  alHacerClic: function () { subir(true); } });
+        actualizarBoton();
+        return;
+      }
       if (!j.ok) {
         mostrar("error", j.error || "No se pudo subir el archivo.");
         if (/clave/i.test(j.error || "")) { clave.value = ""; clave.focus(); }
         actualizarBoton();
         return;
       }
+      var corte = j.corte ? "Fecha de corte del archivo: " + j.corte + "." : "";
       if (j.estado === "sin_cambios") {
         mostrar("ok", "Ese archivo es idéntico al que ya está publicado.",
-                "No se hizo ningún cambio.");
+                "No se hizo ningún cambio. " + corte);
         actualizarBoton();
         return;
       }
       var enlace = /^https:\/\/github\.com\//.test(j.url || "")
         ? { href: j.url, texto: "Ver el cambio en GitHub", nueva: true } : null;
       mostrar("info", "Guardado en el repositorio. Reconstruyendo el tablero…",
-              "Commit " + (j.commit || "") + " · " + j.hojas + " hojas revisadas.", enlace);
-      esperarTablero(enlace, j.commit);
+              corte + " Commit " + (j.commit || "") + " · " + j.hojas +
+              " hojas revisadas.", enlace);
+      esperarTablero(enlace, j.commit, corte);
     }).catch(function () {
       mostrar("error", "No hubo respuesta del servidor.",
               "Revise su conexión e intente de nuevo.");
       actualizarBoton();
     });
-  };
+  }
 
   // Pregunta cada 10 s si el tablero publicado cambió (máximo 6 minutos).
-  function esperarTablero(enlace, commit) {
+  function esperarTablero(enlace, commit, corte) {
     var intentos = 0;
     var tick = setInterval(function () {
       intentos++;
@@ -302,7 +336,7 @@ button.enviar:disabled{opacity:.4;cursor:not-allowed}
           clearInterval(tick);
           etagInicial = h;
           mostrar("ok", "Listo: el tablero ya muestra los datos nuevos.",
-                  "Commit " + (commit || "") + ".",
+                  (corte ? corte + " " : "") + "Commit " + (commit || "") + ".",
                   { href: "index.html", texto: "Ver el tablero →" });
           archivo = null; entrada.value = ""; elegir(null);
         } else if (intentos >= 36) {
