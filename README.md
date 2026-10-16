@@ -62,6 +62,46 @@ El sitio queda en `https://<usuario>.github.io/<repositorio>/`.
 
 ---
 
+## Publicar también en Vercel
+
+El workflow puede publicar el mismo sitio en Vercel después de construirlo.
+GitHub Actions conserva el build de Python y su actualización diaria; no hace
+falta configurar un segundo build en Vercel. GitHub Pages seguirá publicándose
+también.
+
+1. Cree un proyecto en Vercel sin conectarlo al despliegue automático de Git.
+   Puede crearlo con la CLI:
+
+   ```bash
+   npm install --global vercel
+   vercel login
+   vercel project create conectividad-antioquia
+   ```
+
+2. En Vercel, obtenga el **Project ID** en **Project Settings → General**.
+   Obtenga el **Team ID** en los ajustes del equipo; si el proyecto pertenece
+   a una cuenta personal, use el **Owner ID** de esa cuenta como `VERCEL_ORG_ID`.
+   Cree un token en **Account Settings → Tokens**.
+3. En GitHub, vaya a **Settings → Secrets and variables → Actions** y cree
+   estos *secrets*:
+
+   | Nombre | Valor |
+   |---|---|
+   | `VERCEL_TOKEN` | Token de Vercel |
+   | `VERCEL_ORG_ID` | ID del equipo o de la cuenta propietaria |
+   | `VERCEL_PROJECT_ID` | ID del proyecto de Vercel |
+
+4. En esa misma sección, cree la *variable* `VERCEL_DEPLOY` con valor `true`.
+5. Ejecute **Actions → Publicar observatorio → Run workflow**. Las siguientes
+   publicaciones, incluida la ejecución diaria, actualizarán Vercel.
+
+Si `VERCEL_DEPLOY` no está en `true`, el workflow omite Vercel y sigue
+publicando en GitHub Pages. El sitio de Vercel será público; configure las
+variables de SharePoint en GitHub Actions como se describe en
+[observatorio/DESPLIEGUE.md](observatorio/DESPLIEGUE.md).
+
+---
+
 ## Actualizar los datos
 
 El tablero se reconstruye **cada vez que cambia el Excel en el repositorio** y

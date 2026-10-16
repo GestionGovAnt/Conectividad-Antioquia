@@ -77,6 +77,39 @@ jobs:
             python publicar.py
           fi
 
+      - name: Configurar Node.js para Vercel
+        if: ${{ vars.VERCEL_DEPLOY == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Publicar en Vercel
+        if: ${{ vars.VERCEL_DEPLOY == 'true' }}
+        env:
+          OBS: ${{ steps.rutas.outputs.obs }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          for nombre in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!nombre}" ]; then
+              echo "::error::Falta configurar el secreto $nombre en GitHub."
+              exit 1
+            fi
+          done
+
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' \
+            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          npx --yes vercel@latest pull --yes --environment=production \
+            --token="$VERCEL_TOKEN"
+
+          mkdir -p .vercel/output/static
+          cp -a "$OBS/sitio/." .vercel/output/static/
+          printf '{"version":3}\n' > .vercel/output/config.json
+          npx --yes vercel@latest deploy --prebuilt --prod \
+            --token="$VERCEL_TOKEN"
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ steps.rutas.outputs.obs }}/sitio

@@ -4,3 +4,4 @@ __pycache__/
 */sitio/
 .venv/
 .env
+.vercel/
