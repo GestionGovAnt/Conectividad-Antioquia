@@ -737,5 +737,55 @@
     if (e.key === "ArrowRight") mover(1);
   });
 
-  setVista("ficha");
+  /* ---------------- enlace profundo ----------------
+     Lo usa el botón «Ficha completa» del observatorio:
+       ?mun=05002                     ficha de ese municipio
+       ?vista=zona&sub=<subregión>    resumen de la subregión
+       ?vista=zona&eat=<EAT>          resumen del EAT
+       ?vista=zona                    resumen de todo el departamento
+     Un valor que no exista se ignora y la ficha arranca como siempre. */
+  function parametro(nombre) {
+    var m = String(window.location && window.location.search || "")
+      .match(new RegExp("[?&]" + nombre + "=([^&]*)"));
+    if (!m) return "";
+    try { return decodeURIComponent(m[1].replace(/\+/g, " ")); }
+    catch (err) { return ""; }
+  }
+  function existe(el, v) {
+    for (var i = 0; i < el.options.length; i++) {
+      if (el.options[i].value === v) return true;
+    }
+    return false;
+  }
+
+  var vistaInicial = "ficha";
+  (function () {
+    var fsub = document.getElementById("fsub"),
+        feat = document.getElementById("feat"),
+        fmun = document.getElementById("fmun");
+    var cod = parametro("mun").replace(/\D/g, "");
+    if (cod.length === 4) cod = "0" + cod;
+    var mun = cod && MUN.filter(function (x) { return x.cod === cod; })[0];
+
+    if (mun) {
+      // Se acota a su subregión para que Anterior/Siguiente recorran
+      // los municipios vecinos y no los 125.
+      if (existe(fsub, mun.subregion)) fsub.value = mun.subregion;
+      recargarFiltros("sub");
+      fmun.value = mun.cod;
+      return;
+    }
+
+    var sub = parametro("sub"), eat = parametro("eat");
+    if (eat) {
+      // Sin subregión: un EAT puede tener municipios de más de una.
+      if (existe(feat, eat)) { feat.value = eat; recargarFiltros("eat"); }
+    } else if (sub && existe(fsub, sub)) {
+      fsub.value = sub;
+      recargarFiltros("sub");
+    }
+    if (parametro("vista") === "zona") vistaInicial = "zona";
+  })();
+
+  setVista(vistaInicial);
 })();

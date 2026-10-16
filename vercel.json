@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "python3 -m venv .venv && .venv/bin/pip install -r observatorio/requirements.txt",
+  "buildCommand": "cd observatorio && ../.venv/bin/python publicar.py --ficha ../ficha",
+  "outputDirectory": "observatorio/sitio",
+  "functions": {
+    "api/subir.py": {
+      "maxDuration": 30
+    }
+  }
+}

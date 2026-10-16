@@ -4,7 +4,9 @@ Tablero público de conectividad de la Dirección de Gestión Territorial TIC.
 Cuatro ejes sobre el mapa del departamento: educación, salud, seguridad y TIC.
 
 ```
-.github/workflows/publicar.yml   construcción y publicación automáticas
+.github/workflows/publicar.yml   construcción y publicación en GitHub Pages
+vercel.json                      construcción y publicación en Vercel
+api/subir.py                     recibe la sábana desde la página de carga
 observatorio/                    el tablero de mapa
 ficha/                           la ficha municipal detallada
 ```
@@ -62,58 +64,73 @@ El sitio queda en `https://<usuario>.github.io/<repositorio>/`.
 
 ---
 
-## Publicar también en Vercel
+## Vercel
 
-El workflow puede publicar el mismo sitio en Vercel después de construirlo.
-GitHub Actions conserva el build de Python y su actualización diaria; no hace
-falta configurar un segundo build en Vercel. GitHub Pages seguirá publicándose
-también.
+Publicado en **https://conectividad-antioquia.vercel.app**. El proyecto está
+conectado al repositorio: **cada push a `main` lo reconstruye solo**. La
+configuración del build vive en `vercel.json` (instala las dependencias en un
+entorno virtual, corre `publicar.py` y publica `observatorio/sitio`).
 
-1. Cree un proyecto en Vercel sin conectarlo al despliegue automático de Git.
-   Puede crearlo con la CLI:
+**No active la variable `VERCEL_DEPLOY` en GitHub.** El paso de Vercel que
+trae el workflow es de una configuración anterior; si se activa, el sitio se
+publicaría dos veces por caminos distintos.
 
-   ```bash
-   npm install --global vercel
-   vercel login
-   vercel project create conectividad-antioquia
-   ```
-
-2. En Vercel, obtenga el **Project ID** en **Project Settings → General**.
-   Obtenga el **Team ID** en los ajustes del equipo; si el proyecto pertenece
-   a una cuenta personal, use el **Owner ID** de esa cuenta como `VERCEL_ORG_ID`.
-   Cree un token en **Account Settings → Tokens**.
-3. En GitHub, vaya a **Settings → Secrets and variables → Actions** y cree
-   estos *secrets*:
-
-   | Nombre | Valor |
-   |---|---|
-   | `VERCEL_TOKEN` | Token de Vercel |
-   | `VERCEL_ORG_ID` | ID del equipo o de la cuenta propietaria |
-   | `VERCEL_PROJECT_ID` | ID del proyecto de Vercel |
-
-4. En esa misma sección, cree la *variable* `VERCEL_DEPLOY` con valor `true`.
-5. Ejecute **Actions → Publicar observatorio → Run workflow**. Las siguientes
-   publicaciones, incluida la ejecución diaria, actualizarán Vercel.
-
-Si `VERCEL_DEPLOY` no está en `true`, el workflow omite Vercel y sigue
-publicando en GitHub Pages. El sitio de Vercel será público; configure las
-variables de SharePoint en GitHub Actions como se describe en
-[observatorio/DESPLIEGUE.md](observatorio/DESPLIEGUE.md).
+Vercel no corre la ejecución diaria de las 6:00, solo los push. Hoy da igual:
+los datos cambian cuando cambia el Excel del repositorio. Cuando se active la
+descarga desde SharePoint (modo `graph`), habrá que crear un *Deploy Hook* en
+Vercel y llamarlo desde el workflow.
 
 ---
 
 ## Actualizar los datos
 
-El tablero se reconstruye **cada vez que cambia el Excel en el repositorio** y
-además todas las madrugadas a las 6:00.
+Abra **https://conectividad-antioquia.vercel.app/subir.html** (también está el
+enlace «Actualizar datos» al pie del panel del tablero), arrastre la sábana tal
+como la descarga de SharePoint, escriba su nombre y la clave de carga, y pulse
+**Subir y actualizar**. La página avisa cuando el tablero ya muestra los datos
+nuevos, normalmente en uno o dos minutos.
 
-Para actualizar: descargue la sábana de SharePoint, vaya a
-`observatorio/datos/` en GitHub, **Add file → Upload files**, arrastre el
-Excel y confirme. En tres minutos el sitio está al día.
+Qué pasa por dentro: `api/subir.py` revisa que el archivo sea un `.xlsx` sin
+macros y que traiga las 12 hojas que lee el tablero; si falta alguna, lo
+rechaza y no publica nada. Si está bien, lo guarda como
+`observatorio/datos/sabana_unica_visor.xlsx` con un commit que lleva el nombre
+de quien lo subió. Ese commit reconstruye Vercel y GitHub Pages. Si el archivo
+es idéntico al publicado, no hace nada.
 
-No tiene que renombrarlo. El nombre de SharePoint trae tildes
-(`sábana_única_visor.xlsx`) y el build lo reconoce igual; avisa en el log cuál
-archivo usó.
+Si una carga sale mal, el historial del archivo en GitHub permite volver a la
+versión anterior.
+
+### Configurar la carga (una sola vez)
+
+En Vercel → proyecto → **Settings → Environment Variables**, cree:
+
+| Nombre | Valor |
+|---|---|
+| `GITHUB_TOKEN` | Token *fine-grained* de GitHub (ver abajo) |
+| `SUBIDA_CLAVE` | La clave que se escribirá en el formulario, de 12 caracteres o más |
+
+y vuelva a desplegar (**Deployments → … → Redeploy**) para que la función las
+lea.
+
+El token se crea en GitHub → **Settings → Developer settings → Personal access
+tokens → Fine-grained tokens → Generate new token**:
+
+- *Resource owner*: `GestionGovAnt`
+- *Repository access*: **Only select repositories** → `Conectividad-Antioquia`
+- *Permissions → Repository permissions → Contents*: **Read and write**
+- Nada más. Póngale vencimiento y anote la fecha: cuando venza, la página de
+  carga dirá que hay que renovar `GITHUB_TOKEN`.
+
+Comparta la clave de carga solo con quien actualiza los datos. Cambiarla es
+editar `SUBIDA_CLAVE` y volver a desplegar.
+
+### A mano, desde GitHub
+
+Sigue funcionando: en `observatorio/datos/` de GitHub, **Add file → Upload
+files**. Pero súbalo con el nombre exacto **`sabana_unica_visor.xlsx`** para
+que reemplace al actual. Si lo sube con el nombre de SharePoint
+(`sábana_única_visor.xlsx`), queda como un segundo archivo y el build sigue
+usando el de siempre.
 
 ### Conexión automática con SharePoint
 
@@ -123,8 +140,8 @@ escrito y probado; falta que TI entregue las credenciales. Ver
 [observatorio/DESPLIEGUE.md](observatorio/DESPLIEGUE.md), que incluye el texto
 para solicitarlas.
 
-Mientras tanto, subir el archivo a mano toma dos minutos y el resultado es el
-mismo.
+Mientras tanto, subir el archivo con la página de carga toma un minuto y el
+resultado es el mismo.
 
 ---
 

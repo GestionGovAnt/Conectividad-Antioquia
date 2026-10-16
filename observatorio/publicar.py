@@ -21,6 +21,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src import config as cfg
+
 RAIZ = Path(__file__).resolve().parent
 SITIO = RAIZ / "sitio"
 
@@ -75,6 +77,14 @@ def main() -> int:
             shutil.copy(ficha, SITIO / "ficha_tic_antioquia.html")
         else:
             print("  aviso: no se encontró la ficha generada")
+
+    # Página para cargar la sábana. Envía el Excel a api/subir.py (Vercel),
+    # que lo guarda en el repositorio; el commit reconstruye el sitio.
+    plantilla = cfg.DIR_PLANTILLAS / "subir.html"
+    (SITIO / "subir.html").write_text(
+        plantilla.read_text(encoding="utf-8")
+        .replace("{{SITIO_CARGA}}", cfg.SITIO_CARGA),
+        encoding="utf-8")
 
     # GitHub Pages ignora las carpetas que empiezan por guion bajo si no se
     # desactiva Jekyll. Este archivo vacío lo desactiva.

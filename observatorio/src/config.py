@@ -47,6 +47,11 @@ ENLACE_GOBERNACION = "https://www.antioquia.gov.co/mapa-de-antioquia"
 # esté publicada.
 ENLACE_FICHA = "ficha_tic_antioquia.html"
 
+# Sitio donde funciona la página de carga de la sábana (subir.html). Necesita
+# la función api/subir.py, que solo existe en Vercel: GitHub Pages sirve la
+# página, pero desde ahí remite a esta dirección.
+SITIO_CARGA = "https://conectividad-antioquia.vercel.app"
+
 # --------------------------------------------------------------------------
 # Proyección del mapa
 #

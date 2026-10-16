@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Actualizar datos · Observatorio de Conectividad</title>
+<!--
+  Carga de la sábana. Envía el Excel a /api/subir (función de Vercel), que lo
+  valida y lo guarda en el repositorio. El commit dispara la reconstrucción
+  del tablero en Vercel y en GitHub Pages. Copiado al sitio por publicar.py.
+-->
+<style>
+:root{
+  --fondo:#05100C; --panel:#09160F; --borde:rgba(64,220,160,.24);
+  --tinta:#DCEFE6; --suave:#7FA394; --tenue:#4F7566;
+  --neon:#2BE5A0; --error:#FF6B8E; --aviso:#FFB020;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Carlito,Calibri,"Segoe UI",system-ui,-apple-system,sans-serif;
+  color:var(--tinta);background:var(--fondo);min-height:100vh;
+  display:flex;justify-content:center;padding:40px 16px}
+main{width:100%;max-width:560px}
+a{color:var(--neon)}
+h1{font-size:22px;color:#fff;letter-spacing:.01em}
+.sub{font-size:13px;color:var(--suave);margin-top:4px}
+.volver{display:inline-block;font-size:13px;margin-bottom:18px;text-decoration:none}
+.tarjeta{margin-top:22px;background:var(--panel);border:1px solid var(--borde);
+  border-radius:12px;padding:22px}
+.explica{font-size:13.5px;color:var(--suave);line-height:1.55}
+.explica b{color:var(--tinta)}
+.zona{margin-top:18px;border:1.5px dashed var(--borde);border-radius:10px;
+  padding:26px 16px;text-align:center;cursor:pointer;transition:all .15s}
+.zona:hover,.zona.encima{border-color:var(--neon);background:rgba(43,229,160,.05)}
+.zona .t{font-size:15px;color:var(--tinta)}
+.zona .d{font-size:12.5px;color:var(--tenue);margin-top:5px}
+.zona.lleno .t{color:var(--neon);font-weight:700}
+.oculto{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+label.campo{display:block;margin-top:16px;font-size:11.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--suave)}
+label.campo input{display:block;width:100%;margin-top:6px;font:inherit;
+  font-size:15px;letter-spacing:0;text-transform:none;color:var(--tinta);
+  background:#03100B;border:1px solid var(--borde);border-radius:8px;
+  padding:10px 12px}
+label.campo input:focus{outline:2px solid var(--neon);outline-offset:1px}
+button.enviar{margin-top:20px;width:100%;font:inherit;font-size:15px;font-weight:700;
+  padding:12px;border-radius:8px;border:1px solid var(--neon);
+  background:var(--neon);color:#04140E;cursor:pointer}
+button.enviar:disabled{opacity:.4;cursor:not-allowed}
+.estado{margin-top:18px;font-size:14px;line-height:1.55;padding:12px 14px;
+  border-radius:8px;display:none;border:1px solid}
+.estado.ok{display:block;border-color:var(--neon);background:rgba(43,229,160,.07)}
+.estado.error{display:block;border-color:var(--error);background:rgba(255,107,142,.07)}
+.estado.info{display:block;border-color:var(--borde);background:rgba(255,255,255,.03)}
+.estado.aviso{display:block;border-color:var(--aviso);background:rgba(255,176,32,.07)}
+.estado .det{display:block;margin-top:6px;font-size:12.5px;color:var(--suave)}
+.giro{display:inline-block;width:12px;height:12px;border:2px solid var(--suave);
+  border-top-color:transparent;border-radius:50%;margin-right:8px;
+  animation:g .8s linear infinite;vertical-align:-1px}
+@keyframes g{to{transform:rotate(360deg)}}
+.pie{margin-top:18px;font-size:12px;color:var(--tenue);line-height:1.55}
+</style>
+</head>
+<body>
+<main>
+  <a class="volver" href="index.html">&larr; Volver al tablero</a>
+  <h1>Actualizar la sábana</h1>
+  <div class="sub">Observatorio de Conectividad · Gobernación de Antioquia</div>
+
+  <div class="tarjeta">
+    <p class="explica">
+      Suba la <b>sábana única del visor</b> (.xlsx) tal como la descarga de
+      SharePoint. Se revisa que tenga las hojas que el tablero necesita, se
+      guarda en el repositorio y el tablero <b>se reconstruye solo en uno a
+      tres minutos</b>.
+    </p>
+
+    <form id="form" novalidate>
+      <div class="zona" id="zona" tabindex="0" role="button"
+           aria-describedby="zonaDet">
+        <div class="t" id="zonaTxt">Arrastre aquí el Excel o haga clic para elegirlo</div>
+        <div class="d" id="zonaDet">Solo .xlsx · máximo 4 MB</div>
+      </div>
+      <!-- Fuera de la zona: si estuviera dentro, su clic burbujearía a la zona. -->
+      <input type="file" id="archivo" class="oculto" tabindex="-1" aria-hidden="true"
+             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+
+      <label class="campo">Su nombre
+        <input id="autor" type="text" maxlength="80" autocomplete="name"
+               placeholder="Queda en el historial del repositorio">
+      </label>
+      <label class="campo">Clave de carga
+        <input id="clave" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button class="enviar" id="enviar" type="submit" disabled>Subir y actualizar</button>
+    </form>
+
+    <div class="estado" id="estado" role="status" aria-live="polite"></div>
+  </div>
+
+  <p class="pie">
+    Cada carga queda registrada como un commit en el repositorio, con el nombre
+    de quien subió el archivo; si algo sale mal se puede volver a la versión
+    anterior. Si el archivo no trae las hojas esperadas, no se publica nada.
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var ENDPOINT = "api/subir";
+  var SITIO_CARGA = "{{SITIO_CARGA}}";
+  var MAXIMO = 4 * 1024 * 1024;
+
+  var form = document.getElementById("form"),
+      zona = document.getElementById("zona"),
+      zonaTxt = document.getElementById("zonaTxt"),
+      zonaDet = document.getElementById("zonaDet"),
+      entrada = document.getElementById("archivo"),
+      autor = document.getElementById("autor"),
+      clave = document.getElementById("clave"),
+      enviar = document.getElementById("enviar"),
+      estado = document.getElementById("estado");
+
+  var archivo = null, disponible = true, etagInicial = null;
+
+  // ---------- mensajes (siempre como texto, nunca como HTML) ----------
+  function mostrar(tipo, texto, detalle, enlace) {
+    estado.className = "estado " + tipo;
+    estado.textContent = "";
+    if (tipo === "info") {
+      var g = document.createElement("span");
+      g.className = "giro";
+      estado.appendChild(g);
+    }
+    estado.appendChild(document.createTextNode(texto));
+    if (detalle || enlace) {
+      var d = document.createElement("span");
+      d.className = "det";
+      if (detalle) d.appendChild(document.createTextNode(detalle + " "));
+      if (enlace) {
+        var a = document.createElement("a");
+        a.href = enlace.href;
+        a.textContent = enlace.texto;
+        if (enlace.nueva) { a.target = "_blank"; a.rel = "noopener"; }
+        d.appendChild(a);
+      }
+      estado.appendChild(d);
+    }
+  }
+  function bloquear(texto, detalle, enlace) {
+    disponible = false;
+    enviar.disabled = true;
+    mostrar("aviso", texto, detalle, enlace);
+  }
+  function actualizarBoton() {
+    enviar.disabled = !(disponible && archivo && clave.value);
+  }
+
+  // ---------- recordar el nombre (solo comodidad; puede fallar) ----------
+  try { autor.value = localStorage.getItem("observatorio.autor") || ""; } catch (e) {}
+  function recordarAutor() {
+    try { localStorage.setItem("observatorio.autor", autor.value.trim()); } catch (e) {}
+  }
+
+  // ---------- ¿la carga funciona en este sitio? ----------
+  if (/\.github\.io$/i.test(location.hostname)) {
+    bloquear("La carga de datos funciona en el sitio de Vercel, no en GitHub Pages.",
+             "", { href: SITIO_CARGA + "/subir.html", texto: "Ir a la página de carga →" });
+  } else {
+    fetch(ENDPOINT, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    }).then(function (j) {
+      if (!j.configurado) {
+        bloquear("La carga todavía no está configurada.",
+                 "Falta definir GITHUB_TOKEN y SUBIDA_CLAVE en las variables de " +
+                 "entorno del proyecto en Vercel.");
+      }
+    }).catch(function () {
+      bloquear("La función de carga no responde en este sitio.",
+               "Funciona solo publicada en Vercel.",
+               { href: SITIO_CARGA + "/subir.html", texto: "Ir a la página de carga →" });
+    });
+    // Huella del tablero publicado, para saber cuándo cambió.
+    huella().then(function (h) { etagInicial = h; });
+  }
+
+  function huella() {
+    return fetch("index.html", { method: "HEAD", cache: "no-store" })
+      .then(function (r) {
+        return r.headers.get("etag") || r.headers.get("last-modified") || null;
+      }).catch(function () { return null; });
+  }
+
+  // ---------- elegir archivo ----------
+  function tamano(b) {
+    return b < 1024 * 1024 ? Math.round(b / 1024) + " KB"
+      : (b / 1024 / 1024).toFixed(1).replace(".", ",") + " MB";
+  }
+  function elegir(f) {
+    archivo = null;
+    zona.className = "zona";
+    zonaTxt.textContent = "Arrastre aquí el Excel o haga clic para elegirlo";
+    zonaDet.textContent = "Solo .xlsx · máximo 4 MB";
+    if (f) {
+      if (!/\.xlsx$/i.test(f.name)) {
+        mostrar("error", "Ese archivo no es .xlsx.",
+                "Si es .xls o .csv, ábralo en Excel y guárdelo como «Libro de Excel (.xlsx)».");
+      } else if (f.size === 0) {
+        mostrar("error", "El archivo está vacío.");
+      } else if (f.size > MAXIMO) {
+        mostrar("error", "El archivo pesa " + tamano(f.size) + ", más de 4 MB.",
+                "La sábana normal pesa menos de 1 MB: revise que sea el archivo correcto.");
+      } else {
+        archivo = f;
+        zona.className = "zona lleno";
+        zonaTxt.textContent = f.name;
+        zonaDet.textContent = tamano(f.size) + " · clic para cambiarlo";
+        if (disponible) { estado.className = "estado"; estado.textContent = ""; }
+      }
+    }
+    actualizarBoton();
+  }
+  zona.onclick = function () { entrada.click(); };
+  zona.onkeydown = function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); entrada.click(); }
+  };
+  entrada.onchange = function () { elegir(entrada.files[0]); };
+  ["dragenter", "dragover"].forEach(function (ev) {
+    zona.addEventListener(ev, function (e) {
+      e.preventDefault(); zona.classList.add("encima");
+    });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    zona.addEventListener(ev, function (e) {
+      e.preventDefault(); zona.classList.remove("encima");
+    });
+  });
+  zona.addEventListener("drop", function (e) {
+    if (e.dataTransfer && e.dataTransfer.files.length) elegir(e.dataTransfer.files[0]);
+  });
+  clave.oninput = actualizarBoton;
+
+  // ---------- enviar ----------
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    if (enviar.disabled) return;
+    recordarAutor();
+    enviar.disabled = true;
+    mostrar("info", "Subiendo y revisando el archivo…");
+
+    fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Clave": clave.value,
+        "X-Nombre-Archivo": encodeURIComponent(archivo.name),
+        "X-Autor": encodeURIComponent(autor.value.trim())
+      },
+      body: archivo
+    }).then(function (r) {
+      return r.json().catch(function () {
+        return { ok: false, error: r.status === 413
+          ? "El archivo es demasiado grande para la carga."
+          : "El servidor respondió " + r.status + "." };
+      });
+    }).then(function (j) {
+      if (!j.ok) {
+        mostrar("error", j.error || "No se pudo subir el archivo.");
+        if (/clave/i.test(j.error || "")) { clave.value = ""; clave.focus(); }
+        actualizarBoton();
+        return;
+      }
+      if (j.estado === "sin_cambios") {
+        mostrar("ok", "Ese archivo es idéntico al que ya está publicado.",
+                "No se hizo ningún cambio.");
+        actualizarBoton();
+        return;
+      }
+      var enlace = /^https:\/\/github\.com\//.test(j.url || "")
+        ? { href: j.url, texto: "Ver el cambio en GitHub", nueva: true } : null;
+      mostrar("info", "Guardado en el repositorio. Reconstruyendo el tablero…",
+              "Commit " + (j.commit || "") + " · " + j.hojas + " hojas revisadas.", enlace);
+      esperarTablero(enlace, j.commit);
+    }).catch(function () {
+      mostrar("error", "No hubo respuesta del servidor.",
+              "Revise su conexión e intente de nuevo.");
+      actualizarBoton();
+    });
+  };
+
+  // Pregunta cada 10 s si el tablero publicado cambió (máximo 6 minutos).
+  function esperarTablero(enlace, commit) {
+    var intentos = 0;
+    var tick = setInterval(function () {
+      intentos++;
+      huella().then(function (h) {
+        if (h && etagInicial && h !== etagInicial) {
+          clearInterval(tick);
+          etagInicial = h;
+          mostrar("ok", "Listo: el tablero ya muestra los datos nuevos.",
+                  "Commit " + (commit || "") + ".",
+                  { href: "index.html", texto: "Ver el tablero →" });
+          archivo = null; entrada.value = ""; elegir(null);
+        } else if (intentos >= 36) {
+          clearInterval(tick);
+          mostrar("aviso", "El archivo quedó guardado, pero el tablero sigue construyéndose.",
+                  "Revise en unos minutos. Si no cambia, el build pudo fallar:", enlace);
+          actualizarBoton();
+        }
+      });
+    }, 10000);
+  }
+})();
+</script>
+</body>
+</html>

@@ -101,6 +101,8 @@ body{font-family:Carlito,Calibri,"Segoe UI",system-ui,-apple-system,sans-serif;
 .aviso b{color:#FFDA9B}
 .pie{margin-top:16px;font-size:11px;color:var(--tenue);line-height:1.55}
 .pie a{color:var(--neon)}
+.pie a.carga{display:block;margin-top:6px;color:var(--tenue)}
+.pie a.carga:hover{color:var(--neon)}
 
 /* ---------------- franja inferior ---------------- */
 .franja{position:absolute;left:0;right:0;bottom:0;display:flex;z-index:12;

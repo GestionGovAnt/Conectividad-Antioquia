@@ -405,12 +405,15 @@
       acciones.push('<button class="btn-sec" id="volver">' +
                     "&larr; Todo el departamento</button>");
     }
-    if (m) {
-      acciones.push('<a class="btn-pri" id="verficha" target="_blank" ' +
-                    'rel="noopener" title="Abre ' + DATOS.enlace_ficha +
-                    ' en otra pestaña. Los dos archivos deben estar en la ' +
-                    'misma carpeta.">Ficha completa &rarr;</a>');
-    }
+    // La ficha se ofrece en todos los ámbitos: con municipio abre su ficha;
+    // sin municipio abre la vista Zona de la ficha sobre el mismo ámbito
+    // (EAT, subregión o todo el departamento).
+    acciones.push('<a class="btn-pri" id="verficha" target="_blank" ' +
+                  'rel="noopener" href="' + enlaceFicha(amb) + '" title="' +
+                  (m ? "Abre la ficha del municipio" : "Abre el resumen de " +
+                   (amb.tipo === "dep" ? "todo el departamento"
+                    : String(amb.nombre).replace(/"/g, "&quot;"))) +
+                  ' en otra pestaña.">Ficha completa &rarr;</a>');
     var cab = '<div class="ambito">' + amb.nombre + "</div>" +
       '<div class="ambito-sub">' + amb.detalle + "</div>" +
       (acciones.length ? '<div class="acciones">' + acciones.join("") + "</div>" : "");
@@ -459,7 +462,8 @@
       '<div class="pie">Fuente: sábana única del visor · ' + META.dependencia +
       ". Mapa base © OpenStreetMap y CARTO. " +
       '<a href="' + DATOS.enlace_gobernacion + '" target="_blank" rel="noopener">' +
-      "Mapa oficial de Antioquia</a>.</div>";
+      "Mapa oficial de Antioquia</a>. " +
+      '<a href="subir.html" class="carga">Actualizar datos</a></div>';
 
     var volver = document.getElementById("volver");
     if (volver) volver.onclick = function () {
@@ -468,8 +472,17 @@
       volarAAmbito();
       sincronizar();
     };
-    var ficha = document.getElementById("verficha");
-    if (ficha && m) ficha.href = DATOS.enlace_ficha + "?mun=" + m.cod;
+  }
+
+  // Enlace a la ficha para el ámbito actual. La ficha lee estos mismos
+  // parámetros al arrancar (ver "Enlace profundo" en ficha/src/plantillas/app.js).
+  function enlaceFicha(amb) {
+    var q;
+    if (amb.tipo === "mun") q = "mun=" + amb.datos.cod;
+    else if (amb.tipo === "eat") q = "vista=zona&eat=" + encodeURIComponent(amb.nombre);
+    else if (amb.tipo === "sub") q = "vista=zona&sub=" + encodeURIComponent(amb.nombre);
+    else q = "vista=zona";
+    return DATOS.enlace_ficha + "?" + q;
   }
 
   function seleccionar(cod) {
